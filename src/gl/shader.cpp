@@ -90,6 +90,8 @@ bool Shader::load(const std::string& vertexPath, const std::string& fragmentPath
 
 void Shader::destroy()
 {
-    glDeleteProgram(program_);
-    program_ = 0;
+    if (program_) {
+        glDeleteProgram(program_);
+        program_ = 0;
+    }
 }

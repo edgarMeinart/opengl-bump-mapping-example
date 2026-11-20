@@ -1,59 +1,79 @@
 #include "app.h"
 
-#include <cstdio>
+#include <GL/glew.h>
 
-#include "texture.h"
+#include <algorithm>
+#include <cstdio>
+#include <vector>
+
+#include "assets.h"
+#include "imgui.h"
+#include "imgui_impl_opengl2.h"
+#include "imgui_impl_sdl2.h"
 
 namespace {
 
-// Scene is a 10x10 orthographic view; the quad is centred on (5, 5).
-const float kViewSize = 10.0f;
-const float kQuadHalfSize = 5.0f;
+const char* kWindowTitle = "OpenGL examples";
 
-// One additive pass per light, in eye-space coordinates.
-const float kLightZ = 0.5f;
+double secondsSince(Uint64 start)
+{
+    return double(SDL_GetPerformanceCounter() - start) / double(SDL_GetPerformanceFrequency());
+}
 
-const float kEyePosition[3] = {0.0f, 0.0f, 100.0f};
-const float kAmbient[4] = {0.3f, 0.3f, 0.3f, 1.0f};
-const float kDiffuse[4] = {0.8f, 0.8f, 0.8f, 1.0f};
-const float kSpecular[4] = {0.4f, 0.4f, 0.4f, 1.0f};
-const float kSpecularPower = 1.0f;
-
-// Tangent space of the quad: it lies in the XY plane facing +Z.
-const float kTangent[3] = {1.0f, 0.0f, 0.0f};
-const float kBinormal[3] = {0.0f, 1.0f, 0.0f};
+// Puts the fixed-function state back to defaults so examples start from a known state
+// and the OpenGL2 ImGui backend (which can't unbind shaders itself) draws correctly.
+void resetGlState()
+{
+    glUseProgram(0);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_BLEND);
+    glDisable(GL_DEPTH_TEST);
+    glColor4f(1, 1, 1, 1);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+}
 
 } // namespace
 
 App::~App()
 {
-    if (context_) {
-        glDeleteTextures(1, &baseMap_);
-        glDeleteTextures(1, &normalMap_);
-        shader_.destroy();
-        SDL_GL_DeleteContext(context_);
+    example_.reset();  // examples free GL objects, so they go first
+    if (imguiReady_) {
+        ImGui_ImplOpenGL2_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
     }
+    if (context_)
+        SDL_GL_DeleteContext(context_);
     if (window_)
         SDL_DestroyWindow(window_);
     SDL_Quit();
 }
 
-bool App::init(int width, int height)
+bool App::init(const AppOptions& options)
 {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+    options_ = options;
+
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError());
         return false;
     }
 
-    // Assets live next to the build directory: <repo>/build/bump -> <repo>/assets/
+    // Assets live next to the build directory: <repo>/build/opengl-examples -> <repo>/assets/
     char* base = SDL_GetBasePath();
-    assetDir_ = std::string(base ? base : "./") + "../assets/";
+    setAssetRoot(std::string(base ? base : "./") + "../assets/");
     SDL_free(base);
 
     SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-    window_ = SDL_CreateWindow("OpenGL bump mapping", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                               width, height, SDL_WINDOW_OPENGL);
+    window_ = SDL_CreateWindow(kWindowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 800,
+                               SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
     if (!window_) {
         std::fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
         return false;
@@ -66,7 +86,7 @@ bool App::init(int width, int height)
     SDL_GL_SetSwapInterval(1);
 
     glewExperimental = GL_TRUE;
-    GLenum glewStatus = glewInit();
+    const GLenum glewStatus = glewInit();
     if (glewStatus != GLEW_OK) {
         std::fprintf(stderr, "glewInit: %s\n", glewGetErrorString(glewStatus));
         return false;
@@ -76,113 +96,248 @@ bool App::init(int width, int height)
         return false;
     }
 
-    if (!shader_.load(assetPath("shaders/bump.vert"), assetPath("shaders/bump.frag")))
-        return false;
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr;  // don't write imgui.ini next to the binary
+    ImGui::StyleColorsDark();
+    ImGui::GetStyle().FontSizeBase = 15.0f;
+    ImGui::GetStyle().WindowRounding = 6.0f;
+    ImGui::GetStyle().FrameRounding = 3.0f;
+    ImGui_ImplSDL2_InitForOpenGL(window_, context_);
+    ImGui_ImplOpenGL2_Init();
+    imguiReady_ = true;
 
-    baseMap_ = loadBmpTexture(assetPath("textures/stone_wall.bmp"));
-    normalMap_ = loadBmpTexture(assetPath("textures/stone_wall_normal.bmp"));
-    if (!baseMap_ || !normalMap_)
-        return false;
-
-    int drawableWidth = 0, drawableHeight = 0;
-    SDL_GL_GetDrawableSize(window_, &drawableWidth, &drawableHeight);
-    glViewport(0, 0, drawableWidth, drawableHeight);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, kViewSize, 0, kViewSize, -20.0, 20.0);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
+    if (options_.startExample >= 0) {
+        startExample(options_.startExample);
+        if (!example_)
+            return false;
+    }
     return true;
 }
 
 void App::run()
 {
-    for (;;) {
+    const Uint64 appStart = SDL_GetPerformanceCounter();
+    Uint64 last = appStart;
+    bool quit = false;
+
+    while (!quit) {
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT)
-                return;
-            if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_ESCAPE)
-                return;
+        while (SDL_PollEvent(&event))
+            handleEvent(event, quit);
+
+        const Uint64 now = SDL_GetPerformanceCounter();
+        float dt = float(double(now - last) / double(SDL_GetPerformanceFrequency()));
+        last = now;
+        if (dt > 0.1f)
+            dt = 0.1f;
+
+        ImGui_ImplOpenGL2_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
+        ImGui::NewFrame();
+
+        int width = 0, height = 0;
+        SDL_GL_GetDrawableSize(window_, &width, &height);
+        glViewport(0, 0, width, height);
+        resetGlState();
+
+        if (example_) {
+            const FrameInput input = collectInput(float(secondsSince(exampleStart_)), dt);
+            example_->update(input);
+            drawExampleWindow();
+            example_->render(input);
+        } else {
+            glClearColor(0.07f, 0.08f, 0.10f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            drawMenu();
         }
-        render();
+
+        resetGlState();
+        ImGui::Render();
+        ImGui_ImplOpenGL2_RenderDrawData(ImGui::GetDrawData());
+
+        if (!options_.screenshotPath.empty() && secondsSince(appStart) >= options_.screenshotDelay) {
+            if (saveScreenshot(options_.screenshotPath))
+                std::printf("Saved %s\n", options_.screenshotPath.c_str());
+            quit = true;
+        }
         SDL_GL_SwapWindow(window_);
+
+        if (requestMenu_) {
+            requestMenu_ = false;
+            stopExample();
+        }
     }
 }
 
-std::string App::assetPath(const char* relative) const
+void App::handleEvent(const SDL_Event& event, bool& quit)
 {
-    return assetDir_ + relative;
+    ImGui_ImplSDL2_ProcessEvent(&event);
+
+    if (event.type == SDL_QUIT)
+        quit = true;
+    if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE &&
+        event.window.windowID == SDL_GetWindowID(window_))
+        quit = true;
+    if (event.type != SDL_KEYDOWN || ImGui::GetIO().WantTextInput)
+        return;
+
+    const SDL_Keycode key = event.key.keysym.sym;
+    const int count = static_cast<int>(allExamples().size());
+    if (key == SDLK_ESCAPE) {
+        if (example_)
+            requestMenu_ = true;
+        else
+            quit = true;
+    } else if (!example_) {
+        if (key == SDLK_UP)
+            selected_ = (selected_ + count - 1) % count;
+        else if (key == SDLK_DOWN)
+            selected_ = (selected_ + 1) % count;
+        else if (key == SDLK_RETURN || key == SDLK_KP_ENTER)
+            startExample(selected_);
+        else if (key >= SDLK_1 && key < SDLK_1 + count)
+            startExample(key - SDLK_1);
+    }
 }
 
-void App::render()
+FrameInput App::collectInput(float time, float dt)
 {
-    static const Light lights[] = {
-        {8.0f, 4.0f, kLightZ},
-        {4.0f, 4.0f, kLightZ},
-        {0.0f, 0.0f, kLightZ},
-    };
+    FrameInput input;
+    SDL_GL_GetDrawableSize(window_, &input.width, &input.height);
+    input.time = time;
+    input.dt = dt;
 
-    glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glEnable(GL_DEPTH_TEST);
-    glDepthFunc(GL_LEQUAL);
-    glDepthMask(GL_TRUE);
+    int mouseX = 0, mouseY = 0, windowWidth = 1, windowHeight = 1;
+    const Uint32 buttons = SDL_GetMouseState(&mouseX, &mouseY);
+    SDL_GetWindowSize(window_, &windowWidth, &windowHeight);
 
-    glPushMatrix();
-    glTranslatef(kViewSize / 2, kViewSize / 2, 0.0f);
-
-    // First light is drawn opaque, the others are added on top (multipass lighting).
-    glDisable(GL_BLEND);
-    glBlendFunc(GL_ONE, GL_ONE);
-    for (const Light& light : lights) {
-        drawLitQuad(light);
-        glEnable(GL_BLEND);
+    // Screenshot runs ignore the real cursor so the captured frame doesn't depend on where it is.
+    input.mouseInView = options_.screenshotPath.empty() && SDL_GetMouseFocus() == window_ &&
+                        !ImGui::GetIO().WantCaptureMouse;
+    if (input.mouseInView) {
+        input.mouseX = float(mouseX) / float(windowWidth);
+        input.mouseY = 1.0f - float(mouseY) / float(windowHeight);
+        input.mouseDown = (buttons & SDL_BUTTON_LMASK) != 0;
+        input.mouseClicked = input.mouseDown && !mouseWasDown_;
     }
-    glDisable(GL_BLEND);
-
-    glPopMatrix();
+    mouseWasDown_ = input.mouseDown;
+    return input;
 }
 
-void App::drawLitQuad(const Light& light)
+void App::drawMenu()
 {
-    const float lightPosition[3] = {light.x, light.y, light.z};
+    const std::vector<ExampleInfo>& examples = allExamples();
+    const ImGuiIO& io = ImGui::GetIO();
+    const ImGuiStyle& style = ImGui::GetStyle();
 
-    shader_.use();
-    glUniform3fv(shader_.uniform("fvLightPosition"), 1, lightPosition);
-    glUniform3fv(shader_.uniform("fvEyePosition"), 1, kEyePosition);
-    glUniform4fv(shader_.uniform("fvAmbient"), 1, kAmbient);
-    glUniform4fv(shader_.uniform("fvDiffuse"), 1, kDiffuse);
-    glUniform4fv(shader_.uniform("fvSpecular"), 1, kSpecular);
-    glUniform1f(shader_.uniform("fSpecularPower"), kSpecularPower);
-    glUniform1i(shader_.uniform("baseMap"), 0);
-    glUniform1i(shader_.uniform("bumpMap"), 1);
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always,
+                            ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(760, 330), ImGuiCond_Always);
+    ImGui::Begin(kWindowTitle, nullptr,
+                 ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
 
-    glActiveTexture(GL_TEXTURE1);
-    glBindTexture(GL_TEXTURE_2D, normalMap_);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, baseMap_);
+    ImGui::TextDisabled("Pick an example. Double-click, Enter or a number key starts it; Esc returns here.");
+    ImGui::Spacing();
 
-    const GLint tangent = shader_.attribute("rm_Tangent");
-    const GLint binormal = shader_.attribute("rm_Binormal");
-
-    // Corners: position (x, y) and texture coordinate (s, t).
-    static const float corners[4][4] = {
-        {-kQuadHalfSize, -kQuadHalfSize, 0.0f, 1.0f},
-        {-kQuadHalfSize,  kQuadHalfSize, 0.0f, 0.0f},
-        { kQuadHalfSize,  kQuadHalfSize, 1.0f, 0.0f},
-        { kQuadHalfSize, -kQuadHalfSize, 1.0f, 1.0f},
-    };
-
-    glNormal3f(0.0f, 0.0f, 1.0f);
-    glBegin(GL_QUADS);
-    for (const float* c : corners) {
-        glVertexAttrib3fv(binormal, kBinormal);
-        glVertexAttrib3fv(tangent, kTangent);
-        glTexCoord2f(c[2], c[3]);
-        glVertex3f(c[0], c[1], 0.0f);
+    const float footer = ImGui::GetFrameHeightWithSpacing() + style.ItemSpacing.y;
+    ImGui::BeginChild("list", ImVec2(240, -footer), ImGuiChildFlags_Borders);
+    for (int i = 0; i < static_cast<int>(examples.size()); ++i) {
+        char label[128];
+        std::snprintf(label, sizeof(label), "%d.  %s", i + 1, examples[i].title);
+        if (ImGui::Selectable(label, selected_ == i, ImGuiSelectableFlags_AllowDoubleClick)) {
+            selected_ = i;
+            if (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+                startExample(i);
+        }
     }
-    glEnd();
+    ImGui::EndChild();
+    ImGui::SameLine();
 
-    Shader::unuse();
+    const ExampleInfo& info = examples[selected_];
+    ImGui::BeginChild("details", ImVec2(0, -footer), ImGuiChildFlags_Borders);
+    ImGui::PushFont(nullptr, style.FontSizeBase * 1.5f);
+    ImGui::TextUnformatted(info.title);
+    ImGui::PopFont();
+    ImGui::Separator();
+    ImGui::TextWrapped("%s", info.description);
+    ImGui::Spacing();
+    ImGui::TextDisabled("From the terminal: ./build/opengl-examples %s", info.id);
+    ImGui::EndChild();
+
+    if (ImGui::Button("Run", ImVec2(120, 0)))
+        startExample(selected_);
+    if (!error_.empty()) {
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.45f, 0.4f, 1.0f), "%s", error_.c_str());
+    }
+    ImGui::End();
+}
+
+void App::drawExampleWindow()
+{
+    const ExampleInfo& info = allExamples()[exampleIndex_];
+
+    ImGui::SetNextWindowPos(ImVec2(12, 12), ImGuiCond_Once);
+    ImGui::SetNextWindowBgAlpha(0.85f);
+    ImGui::Begin(info.title, nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    if (ImGui::Button("< Menu (Esc)"))
+        requestMenu_ = true;
+    ImGui::SameLine();
+    ImGui::Text("%.0f FPS", ImGui::GetIO().Framerate);
+    ImGui::Separator();
+    ImGui::PushItemWidth(200);
+    example_->drawUi();
+    ImGui::PopItemWidth();
+    ImGui::End();
+}
+
+void App::startExample(int index)
+{
+    stopExample();
+    const ExampleInfo& info = allExamples()[index];
+    std::unique_ptr<Example> example = info.create();
+    if (!example->init()) {
+        error_ = std::string("Could not start \"") + info.title + "\", see the terminal output.";
+        std::fprintf(stderr, "%s\n", error_.c_str());
+        return;
+    }
+    example_ = std::move(example);
+    exampleIndex_ = index;
+    selected_ = index;
+    exampleStart_ = SDL_GetPerformanceCounter();
+    error_.clear();
+    SDL_SetWindowTitle(window_, (std::string(kWindowTitle) + " - " + info.title).c_str());
+}
+
+void App::stopExample()
+{
+    example_.reset();
+    exampleIndex_ = -1;
+    SDL_SetWindowTitle(window_, kWindowTitle);
+}
+
+bool App::saveScreenshot(const std::string& path) const
+{
+    int width = 0, height = 0;
+    SDL_GL_GetDrawableSize(window_, &width, &height);
+    const int rowSize = width * 3;
+    std::vector<unsigned char> pixels(static_cast<size_t>(rowSize) * height);
+    std::vector<unsigned char> flipped(pixels.size());
+
+    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    glReadBuffer(GL_BACK);
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+    for (int y = 0; y < height; ++y)  // OpenGL rows are bottom-up, BMP rows here are top-down
+        std::copy_n(&pixels[static_cast<size_t>(y) * rowSize], rowSize,
+                    &flipped[static_cast<size_t>(height - 1 - y) * rowSize]);
+
+    SDL_Surface* surface =
+        SDL_CreateRGBSurfaceWithFormatFrom(flipped.data(), width, height, 24, rowSize, SDL_PIXELFORMAT_RGB24);
+    const bool ok = surface && SDL_SaveBMP(surface, path.c_str()) == 0;
+    if (!ok)
+        std::fprintf(stderr, "Can't save %s: %s\n", path.c_str(), SDL_GetError());
+    SDL_FreeSurface(surface);
+    return ok;
 }

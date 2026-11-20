@@ -5,8 +5,14 @@
 #include <string>
 
 // A linked GLSL program built from one vertex and one fragment shader file.
+// Owns the GL program; must be destroyed while the GL context is alive.
 class Shader {
 public:
+    Shader() = default;
+    ~Shader() { destroy(); }
+    Shader(const Shader&) = delete;
+    Shader& operator=(const Shader&) = delete;
+
     // Compiles and links both stages; prints the info log and returns false on failure.
     bool load(const std::string& vertexPath, const std::string& fragmentPath);
     void destroy();
