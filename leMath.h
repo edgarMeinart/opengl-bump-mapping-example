@@ -24,10 +24,10 @@ struct leVec2f
 	leVec2f(float _x,float _y){x = _x;y = _y;}
 	~leVec2f(){};
 
-	leVec2f operator /(const float &scale) const; //Делить вектор на скалярное число 
-	leVec2f operator *(const leVec2f &other) const; //Умножить вектор на вектор
-	leVec2f operator +(const leVec2f &other) const; //Прибавить к вектору вектор
-	leVec2f operator -(const leVec2f &other) const; //Отнять вектор
+	leVec2f operator /(const float &scale) const; //Р”РµР»РёС‚СЊ РІРµРєС‚РѕСЂ РЅР° СЃРєР°Р»СЏСЂРЅРѕРµ С‡РёСЃР»Рѕ 
+	leVec2f operator *(const leVec2f &other) const; //РЈРјРЅРѕР¶РёС‚СЊ РІРµРєС‚РѕСЂ РЅР° РІРµРєС‚РѕСЂ
+	leVec2f operator +(const leVec2f &other) const; //РџСЂРёР±Р°РІРёС‚СЊ Рє РІРµРєС‚РѕСЂСѓ РІРµРєС‚РѕСЂ
+	leVec2f operator -(const leVec2f &other) const; //РћС‚РЅСЏС‚СЊ РІРµРєС‚РѕСЂ
 	leVec2f operator -() const;
 
 	bool operator==(leVec2f &other) const;
@@ -38,8 +38,8 @@ struct leVec2f
 
 	bool operator!=(leVec2f &other) const;
 	
-	void Scale(float size);//Умножить вектор на скалярное число !
-	float Length();// Длинна вектора
+	void Scale(float size);//РЈРјРЅРѕР¶РёС‚СЊ РІРµРєС‚РѕСЂ РЅР° СЃРєР°Р»СЏСЂРЅРѕРµ С‡РёСЃР»Рѕ !
+	float Length();// Р”Р»РёРЅРЅР° РІРµРєС‚РѕСЂР°
 	leVec2f Normal();
 }; 
 struct leEdge

@@ -14,16 +14,25 @@ CWindowSDL::~CWindowSDL(void)
 
 void CWindowSDL::Init( int W, int H)
 {
-	sdlflags = SDL_HWSURFACE |SDL_OPENGL | SDL_DOUBLEBUF;
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 	{
 		printf("Error: %s \n",SDL_GetError());
-		exit(0);
-		SDL_Quit();
-	}else
+		exit(1);
+	}
+	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
+	SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,24);
+	main_window = SDL_CreateWindow("OpenGL bump mapping",
+		SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,W,H,SDL_WINDOW_OPENGL);
+	if (!main_window)
 	{
-		SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
-		main_screen = SDL_SetVideoMode(W,H,32,sdlflags);
+		printf("Error: %s \n",SDL_GetError());
+		exit(1);
+	}
+	gl_context = SDL_GL_CreateContext(main_window);
+	if (!gl_context)
+	{
+		printf("Error: %s \n",SDL_GetError());
+		exit(1);
 	}
 	Width = W;
 	Height = H;
@@ -129,15 +138,12 @@ void CWindowSDL::Run()
 
 
 
-				case SDL_VIDEORESIZE:
-					int Width = event.resize.w;
-					int Height = event.resize.h;
-
-					if (!SDL_SetVideoMode(Width , Height,0,sdlflags))
+				case SDL_WINDOWEVENT:
+					if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 					{
-						printf("Resize failed! \n");
+						Width = event.window.data1;
+						Height = event.window.data2;
 					}
-					Resize(Width,Height);
 					break;
 
 			}
@@ -150,6 +156,8 @@ void CWindowSDL::Run()
 
 void CWindowSDL::End()
 {
+	SDL_GL_DeleteContext(gl_context);
+	SDL_DestroyWindow(main_window);
 	SDL_Quit();
 }
 
@@ -391,5 +399,5 @@ void CWindowSDL::Render()
 
 
 
-	SDL_GL_SwapBuffers();
+	SDL_GL_SwapWindow(main_window);
 }

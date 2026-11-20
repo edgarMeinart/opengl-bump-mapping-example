@@ -1,9 +1,7 @@
 #pragma once
 
 
-#include <windows.h>
-#include <GL/GLew.h>
-#include <gl/gl.h>
+#include <GL/glew.h>
 
 class FrameBufferObject
 {
@@ -36,7 +34,7 @@ public:
 	GLuint program; // programma
 
 	
-	void LoadShader(char *f_file,char *v_file);
+	void LoadShader(const char *f_file,const char *v_file);
 
 	void enable();
 	void disable();
@@ -44,7 +42,7 @@ public:
 	void printVertexShaderInfoLog();
 	void printFragmentShaderInfoLog();
 private:
-	char *ReadFromFile(char *filename);
+	char *ReadFromFile(const char *filename);
 
 
 };

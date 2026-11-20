@@ -60,7 +60,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="OpenGL32.lib Glew32.lib SDL.lib SDLmain.lib glaux.lib"
+				AdditionalDependencies="OpenGL32.lib glew32.lib SDL2.lib SDL2main.lib"
 				LinkIncremental="2"
 				GenerateDebugInformation="true"
 				SubSystem="1"
@@ -200,7 +200,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Normalisation Cube Map.cpp"
+				RelativePath=".\NormalisationCubeMap.cpp"
 				>
 			</File>
 			<File
@@ -270,7 +270,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Normalisation Cube Map.h"
+				RelativePath=".\NormalisationCubeMap.h"
 				>
 			</File>
 			<File

@@ -1,5 +1,6 @@
 #include "FrameBufferObject.h"
 #include <stdio.h>
+#include <stdlib.h>
 cShader::cShader()
 {
 
@@ -8,7 +9,7 @@ cShader::~cShader()
 {
 
 }
-void cShader::LoadShader(char *f_file, char *v_file)
+void cShader::LoadShader(const char *f_file, const char *v_file)
 {	
 	glewInit();
 	char *vs;
@@ -41,7 +42,7 @@ void cShader::LoadShader(char *f_file, char *v_file)
 
 	
 }
-char* cShader::ReadFromFile(char *filename)
+char* cShader::ReadFromFile(const char *filename)
 {
 	FILE *fp;
 	char *content = NULL;

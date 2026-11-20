@@ -1,9 +1,8 @@
 #pragma once
+#include <GL/glew.h>
 #include <SDL.h>
-#include <gl/Glew.h>
-#include <gl/gl.h>
-#include "math/maths.h"
-#include "Normalisation Cube Map.h"
+#include "Math/Maths.h"
+#include "NormalisationCubeMap.h"
 #include "graphic/LoadImages.h"
 #include "graphic/FrameBufferObject.h"
 
@@ -14,9 +13,9 @@ public:
 	CWindowSDL(void);
 	~CWindowSDL(void);
 
-	SDL_Surface *main_screen;
+	SDL_Window *main_window;
+	SDL_GLContext gl_context;
 	SDL_Event event;
-	int sdlflags;
 	int Width;
 	int Height;
 

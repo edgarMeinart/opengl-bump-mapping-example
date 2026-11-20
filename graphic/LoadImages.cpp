@@ -1,4 +1,6 @@
-
+#include <stdlib.h>
+#include <string.h>
+#include <SDL.h>
 #include "LoadImages.h"
 
 //================Image=====================
@@ -10,15 +12,30 @@ structImage::~structImage()
 {
 
 }
-structImage LoadBMPImage(char *path)
+// Loads a BMP as tightly packed RGB rows, bottom row first
+// (same layout the original glaux auxDIBImageLoad() returned).
+structImage LoadBMPImage(const char *path)
 {
 	structImage img1;
-	AUX_RGBImageRec *auxImage[1];
-	auxImage[0] = auxDIBImageLoad(path);
+	SDL_Surface *bmp = SDL_LoadBMP(path);
+	SDL_Surface *rgb = bmp ? SDL_ConvertSurfaceFormat(bmp, SDL_PIXELFORMAT_RGB24, 0) : NULL;
+	if (!rgb)
+	{
+		printf("Can't load image %s: %s\n",path,SDL_GetError());
+		exit(1);
+	}
+	SDL_FreeSurface(bmp);
 
-	img1.Data = auxImage[0]->data;
-	img1.Width = auxImage[0]->sizeX;
-	img1.Height = auxImage[0]->sizeY;
+	img1.Width = rgb->w;
+	img1.Height = rgb->h;
+	int rowSize = rgb->w * 3;
+	img1.Data = new unsigned char[rowSize * rgb->h];
+	for (int y = 0; y < rgb->h; y++)
+	{
+		memcpy(img1.Data + (rgb->h - 1 - y) * rowSize,
+			(unsigned char *)rgb->pixels + y * rgb->pitch, rowSize);
+	}
+	SDL_FreeSurface(rgb);
 	printf("Image: %s Width: %i Height: %i \n",path,img1.Width,img1.Height);
 	return img1;
 }
@@ -32,7 +49,7 @@ void ReadLine(FILE * file,char *string)
 	}while ((string[0] == '/') || (string[0] == '\n'));
 	return;
 }
-unsigned char *ConvertImagesColor(unsigned char *data,int w,int h) // Додумать!!!!!!!!!!!!!!!! 
+unsigned char *ConvertImagesColor(unsigned char *data,int w,int h) // Р”РѕРґСѓРјР°С‚СЊ!!!!!!!!!!!!!!!! 
 {
 	unsigned char *convertImage;
 	convertImage = new unsigned char[w * h * 4];
@@ -62,7 +79,7 @@ unsigned char *ConvertImagesColor(unsigned char *data,int w,int h) // Додумать!!
 	for (int i = 0; i < 4; i++) delete [] colors[i];
 	return convertImage;
 }
-ImagesList LoadImages(char *path,char *folder_path)
+ImagesList LoadImages(const char *path,const char *folder_path)
 {
 	
 	FILE *file;
@@ -90,8 +107,8 @@ ImagesList LoadImages(char *path,char *folder_path)
 		char buff2[255];
 		unsigned char *dData;
 		ReadLine(file,oneline);
-		sscanf(oneline,"%s",&buff);
-		sprintf(buff2,"%s%s",folder_path,buff);
+		sscanf(oneline,"%254s",buff);
+		snprintf(buff2,sizeof(buff2),"%s%s",folder_path,buff);
 		
 		rList.img[i] = LoadBMPImage(buff2);	
 		dData = rList.img[i].Data;

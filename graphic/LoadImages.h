@@ -1,9 +1,6 @@
 #pragma once
 #include <stdio.h>
-#include <windows.h>
-#include <GL/GL.h>
-#include <gl/glu.h>
-#include <gl/glaux.h>
+#include <GL/glew.h>
 
 
 struct structImage
@@ -16,7 +13,7 @@ struct structImage
 	unsigned char *Data;
 	unsigned char *Data2;
 };
-structImage LoadBMPImage(char *path);
+structImage LoadBMPImage(const char *path);
 struct ImagesList
 {
 	ImagesList(){ }
@@ -26,7 +23,7 @@ struct ImagesList
 	GLuint *tex;
 
 };
-ImagesList LoadImages(char *path,char *folder_path);
+ImagesList LoadImages(const char *path,const char *folder_path);
 
 struct Animation
 {

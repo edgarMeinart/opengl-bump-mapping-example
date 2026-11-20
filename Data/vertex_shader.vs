@@ -19,7 +19,7 @@ void main()
 	Position = (gl_ModelViewMatrix * gl_Vertex).xyz;
 
 	vec3 fvViewDirection  = fvEyePosition - fvObjectPosition.xyz;
-	vec3 fvLightDirection = fvLightPosition * vec3(1.0f,1.0f,1.0f) - fvObjectPosition.xyz;
+	vec3 fvLightDirection = fvLightPosition - fvObjectPosition.xyz;
 	 
 	vec3 fvNormal         = gl_NormalMatrix * gl_Normal;
 	vec3 fvBinormal       = gl_NormalMatrix * rm_Binormal;

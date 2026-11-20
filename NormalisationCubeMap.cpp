@@ -8,12 +8,10 @@
 //	Distributed under the New BSD Licence. (See accompanying file License.txt or copy at
 //	http://www.paulsprojects.net/NewBSDLicense.txt)
 //////////////////////////////////////////////////////////////////////////////////////////	
-#include <windows.h>
 #include <stdio.h>
-#include <GL/GLEW.h>
-#include <GL/gl.h>
+#include <GL/glew.h>
 #include "Math/Maths.h"
-#include "Normalisation Cube Map.h"
+#include "NormalisationCubeMap.h"
 
 bool GenerateNormalisationCubeMap()
 {

@@ -1,7 +1,6 @@
-#include "GLObjects.h"
-#include <windows.h>
+#include <GL/glew.h>
 #include <math.h>
-#include <gl/gl.h>
+#include "GLObjects.h"
 void DrawLightSource(float x, float y,float d, float r)
 {
 	glPushMatrix();
