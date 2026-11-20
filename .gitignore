@@ -1,2 +1,5 @@
 /build/
-/bump
+.DS_Store
+Thumbs.db
+compile_commands.json
+.cache/

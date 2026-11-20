@@ -1,36 +1,22 @@
-# OpenGL bump mapping example — SDL2 + GLEW + legacy OpenGL 2.1 / GLSL 1.10
+# OpenGL bump mapping example: SDL2 + GLEW + OpenGL 2.1 / GLSL 1.10
 #
-#   make            build ./bump (release)
+#   make            build build/bump (release)
 #   make DEBUG=1    build with -O0 -g
-#   make run        build and run (from the repo root, so Data/ resolves)
-#   make clean      remove build artifacts
+#   make run        build and run
+#   make clean      remove build/
 
-TARGET   := bump
+TARGET   := build/bump
+SRCDIR   := src
 BUILDDIR := build
 
-CXX      ?= c++
+CXX        ?= c++
 PKG_CONFIG ?= pkg-config
 
-SRCS := MAIN.cpp \
-        WindowSDL.cpp \
-        NormalisationCubeMap.cpp \
-        leMath.cpp \
-        stdafx.cpp \
-        graphic/FrameBufferObject.cpp \
-        graphic/GLObjects.cpp \
-        graphic/LoadImages.cpp \
-        graphic/Shader.cpp \
-        Math/COLOR.cpp \
-        Math/MATRIX4X4.cpp \
-        Math/PLANE.cpp \
-        Math/VECTOR2D.cpp \
-        Math/VECTOR3D.cpp \
-        Math/VECTOR4D.cpp
-
-OBJS := $(SRCS:%.cpp=$(BUILDDIR)/%.o)
+SRCS := $(wildcard $(SRCDIR)/*.cpp)
+OBJS := $(SRCS:$(SRCDIR)/%.cpp=$(BUILDDIR)/obj/%.o)
 DEPS := $(OBJS:.o=.d)
 
-PKGS := sdl2 glew
+PKGS    := sdl2 glew
 UNAME_S := $(shell uname -s)
 
 ifeq ($(UNAME_S),Darwin)
@@ -51,8 +37,8 @@ else
   OPTFLAGS := -O2
 endif
 
-CPPFLAGS += -I. $(PKG_CFLAGS)
-CXXFLAGS += -std=c++11 $(OPTFLAGS) -Wall -Wno-unused-variable -Wno-unused-but-set-variable -Wno-unknown-warning-option
+CPPFLAGS += $(PKG_CFLAGS)
+CXXFLAGS += -std=c++11 $(OPTFLAGS) -Wall -Wextra
 LDLIBS   += $(PKG_LIBS) $(GL_LIBS)
 
 .PHONY: all run clean
@@ -62,7 +48,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LDLIBS)
 
-$(BUILDDIR)/%.o: %.cpp
+$(BUILDDIR)/obj/%.o: $(SRCDIR)/%.cpp
 	@mkdir -p $(@D)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -MMD -MP -c -o $@ $<
 
@@ -70,6 +56,6 @@ run: $(TARGET)
 	./$(TARGET)
 
 clean:
-	rm -rf $(BUILDDIR) $(TARGET)
+	rm -rf $(BUILDDIR)
 
 -include $(DEPS)
